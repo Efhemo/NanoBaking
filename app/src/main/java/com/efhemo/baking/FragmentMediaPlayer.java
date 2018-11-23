@@ -12,6 +12,7 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.bumptech.glide.Glide;
 import com.efhemo.baking.model.Steps;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
@@ -25,12 +26,14 @@ import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 
 public class FragmentMediaPlayer extends Fragment {
 
+    public static final String PLAYER_CURRENT_STATE = "Player Current State";
     private TextView textViewDescription;
     private PlayerView playerView;
     private SimpleExoPlayer player;
     private Steps steps;
     private Button previousBtn;
     private ImageView thumnailImage;
+    private Long position;
 
     @Nullable
     @Override
@@ -40,6 +43,10 @@ public class FragmentMediaPlayer extends Fragment {
         Bundle bundle = getArguments();
         initView(view);
         //MediaController mediaController = new MediaController(getContext());
+
+        if (savedInstanceState != null) {
+            position = savedInstanceState.getLong(PLAYER_CURRENT_STATE, 0);
+        }
 
         if (bundle != null) {
             steps = bundle.getParcelable("steps");
@@ -55,33 +62,45 @@ public class FragmentMediaPlayer extends Fragment {
     }
 
     private void initializePlayer() {
-        //create a new instance of SimpleExoPlayer
-        player = ExoPlayerFactory.newSimpleInstance(
-                new DefaultRenderersFactory(getContext()),
-                new DefaultTrackSelector(), new DefaultLoadControl());
 
-        //set player into playerview
-        playerView.setPlayer(player);
 
-        player.setPlayWhenReady(true);
-        //player.seekTo(currentWindow, playbackPosition);
+            //create a new instance of SimpleExoPlayer
+            player = ExoPlayerFactory.newSimpleInstance(
+                    new DefaultRenderersFactory(getContext()),
+                    new DefaultTrackSelector(), new DefaultLoadControl());
 
-        Uri uri = null;
-        try{
-            if(!steps.getVideoURL().isEmpty()){
+            //set player into playerview
+            playerView.setPlayer(player);
 
-                uri = Uri.parse(steps.getVideoURL());
-            }else{
-                playerView.setVisibility(View.GONE);
-                thumnailImage.setVisibility(View.VISIBLE);
+            player.setPlayWhenReady(true);
 
+            Uri uri = null;
+            try {
+                if (!steps.getVideoURL().isEmpty()) {
+
+                    uri = Uri.parse(steps.getVideoURL());
+                } else if (!steps.getThumbnailURL().isEmpty()) {
+                    playerView.setVisibility(View.GONE);
+                    thumnailImage.setVisibility(View.VISIBLE);
+                    Glide.with(getContext()).load(steps.getThumbnailURL()).
+                            centerCrop().into(thumnailImage);
+                } else {
+                    playerView.setVisibility(View.GONE);
+                    thumnailImage.setVisibility(View.VISIBLE);
+
+                }
+            } catch (NullPointerException e) {
+                e.printStackTrace();
             }
-        }catch (NullPointerException e){
-            e.printStackTrace();
-        }
-        MediaSource mediaSource = buildMediaSource(uri);
-        player.prepare(mediaSource, true, false);
-        player.setPlayWhenReady(true);
+            MediaSource mediaSource = buildMediaSource(uri);
+            player.prepare(mediaSource, true, false);
+
+            if(position != null){
+
+                player.seekTo(position);
+            }
+            player.setPlayWhenReady(true);
+
     }
 
     void initView(View view){
@@ -91,8 +110,6 @@ public class FragmentMediaPlayer extends Fragment {
 
         textViewDescription = view.findViewById(R.id.short_description);
 
-        /*previousBtn = view.findViewById(R.id.previous_btn);
-        Button nextBtn = view.findViewById(R.id.next_btn);*/
     }
 
     //create a datasource
@@ -102,27 +119,60 @@ public class FragmentMediaPlayer extends Fragment {
                 createMediaSource(uri);
     }
 
+
     @Override
-    public void onStart() {
-        super.onStart();
+    public void onResume() {
+        super.onResume();
         initializePlayer();
+
     }
 
-    /*@Override
+    @Override
     public void onPause() {
         super.onPause();
         if (player!=null) {
+            player.stop();
             player.release();
-            player = null;
         }
-    }*/
+    }
 
     @Override
     public void onStop() {
         super.onStop();
-        playerView.setPlayer(null);
-        player.release();
-        player = null;
+        if (player!=null) {
+            player.stop();
+            player.release();
+        }
     }
+
+
+    @Override
+    public void onDetach() {
+        super.onDetach();
+        if (player!=null) {
+            player.stop();
+            player.release();
+        }
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (player!=null) {
+            player.stop();
+            player.release();
+            player=null;
+        }
+    }
+
+
+    @Override
+    public void onSaveInstanceState(Bundle currentState) {
+        super.onSaveInstanceState(currentState);
+        currentState.putLong(PLAYER_CURRENT_STATE, player.getCurrentPosition());
+
+}
+
+
 
 }
